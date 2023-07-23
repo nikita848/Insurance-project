@@ -16,5 +16,13 @@
     become : yes
     become_user : root
 
+  - name: Stop the http_server1 container
+    docker_container:
+      name: insureme
+      state: stopped
+
+  - name: Remove Existing  Container
+    command: docker rm insureme
+
   - name: Deploy Docker Container
     command: docker run --name insureme -itd -p 8085:8081 nik848/insurance:3.0
