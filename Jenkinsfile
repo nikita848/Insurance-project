@@ -1,4 +1,4 @@
-node {
+node{
     
     def mavenHome
     def mavenCMD
@@ -6,57 +6,59 @@ node {
     def dockerCMD
     def tagName
     
-    stage('Prepare the environment based on the global tools'){
-        echo 'Initialize the variables'
+    stage('prepare enviroment'){
+        echo 'initialize all the variables'
         mavenHome = tool name: 'myMaven' , type: 'maven'
         mavenCMD = "${mavenHome}/bin/mvn"
         docker = tool name: 'myDocker' , type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
         dockerCMD = "${docker}/bin/docker"
         tagName="3.0"
-        
     }
-    stage('checkout the git repository'){
-        echo 'Cloning the repository .................................'
-        git 'https://github.com/niladrimondal/insure-me.git'
-        
-    }
-    stage('package the insume application'){
-        echo 'clean ... Compile....Test....Package....'
-        sh "${mavenCMD} clean package"
-    }
-    stage('Publish the Test report'){
-        echo 'publish the test reports'
-        publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/insureme-deployment-pipeline/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
-        
-    }
-    stage('Build the Docker Image using the Docker file'){
+    
+    stage('git code checkout'){
         try{
-        echo 'Building the Docker Image'    
-        sh "${dockerCMD} build -t niladrimondaldcr/insureme:${tagName} ."
+            echo 'checkout the code from git repository'
+            git 'https://github.com/nikita848/Insurance-project.git'
         }
         catch(Exception e){
-            echo 'Exception Occur in Stage Docker Biuld'
+            echo 'Exception occured in Git Code Checkout Stage'
             currentBuild.result = "FAILURE"
-            emailext body: '''Hello 
-
-            We are having issue with the Docker Build Command . Can you please look into the same.
-
-            Thanks,
-            Jenkins Admin''', subject: 'Attention: ${JOB_NAME} is failed. Please look into the ${BUILD_NUMBER} ', to: 'niladrimondal.mondal@gmail.com'
+            emailext body: '''Dear All,
+            The Jenkins job ${JOB_NAME} has been failed. Request you to please have a look at it immediately by clicking on the below link. 
+            ${BUILD_URL}''', subject: 'Job ${JOB_NAME} ${BUILD_NUMBER} is failed', to: 'shubham@gmail.com'
         }
     }
-    stage('Push the Docker image'){
-        echo 'push the Docker Image to the dockerhub'
-        withCredentials([string(credentialsId: 'DockerPassword', variable: 'dockerpassword')]) {
-                sh "${dockerCMD} login -u niladrimondaldcr -p ${dockerpassword}"
-                sh "${dockerCMD} push niladrimondaldcr/insureme:${tagName}"
+    
+    stage('Build the Application'){
+        echo "Cleaning... Compiling...Testing... Packaging..."
+        //sh 'mvn clean package'
+        sh "${mavenCMD} clean package"        
+    }
+    
+    stage('publish test reports'){
+        publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/Capstone-Project-Live-Demo/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+    }
+    
+    stage('Containerize the application'){
+        echo 'Creating Docker image'
+        sh "${dockerCMD} build -t nik848/insurance:${tagName} ."
+    }
+    
+    stage('Pushing it ot the DockerHub'){
+        echo 'Pushing the docker image to DockerHub'
+        withCredentials([string(credentialsId: 'dock-password', variable: 'dockerHubPassword')]) {
+        sh "${dockerCMD} login -u nik848 -p ${dockerHubPassword}"
+        sh "${dockerCMD} push nik848/insurance:${tagName}"
+            
         }
         
+    stage('Configure and Deploy to the test-server'){
+        ansiblePlaybook become: true, credentialsId: 'ansible-ssh', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
     }
-    stage('configure the application in the Test Server using Ansible'){
-        echo 'deploy application on test server'
-        ansiblePlaybook become: true, credentialsId: 'ansiblekey', disableHostKeyChecking: true, installation: 'myAnsible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
         
         
     }
 }
+
+
+
